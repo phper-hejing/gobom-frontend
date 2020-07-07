@@ -5,6 +5,7 @@ const dataUrl = REQUEST_URL + '/script';
 const addUrl = REQUEST_URL + '/script/add';
 const editUrl = REQUEST_URL + '/script/edit';
 const delUrl = REQUEST_URL + '/script/delete';
+const testUrl = REQUEST_URL + '/script/test';
 
 export default {
   namespace: 'script',
@@ -29,13 +30,13 @@ export default {
       yield put({ type: 'setScript', payload: script });
     },
     *addScript({ payload: script }, { call, put }) {
-      script.data = JSON.stringify(script.data)
+      script.data = JSON.stringify(script.data);
       return yield call(request, addUrl, {
         body: JSON.stringify(script),
       });
     },
     *editScript({ payload: script }, { call, put }) {
-      script.data = JSON.stringify(script.data)
+      script.data = JSON.stringify(script.data);
       return yield call(request, editUrl, {
         body: JSON.stringify(script),
       });
@@ -43,8 +44,14 @@ export default {
     *delScript({ payload: id }, { call, put }) {
       return yield call(request, delUrl, {
         body: JSON.stringify({
-          id: id
+          id: id,
         }),
+      });
+    },
+    *testScript({ payload: script }, { call, put }) {
+      script.data = JSON.stringify(script.data);
+      return yield call(request, testUrl, {
+        body: JSON.stringify(script),
       });
     },
   },

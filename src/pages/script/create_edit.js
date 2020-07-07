@@ -10,6 +10,8 @@ import {
   Badge,
   InputNumber,
   message,
+  Progress,
+  Tag,
 } from 'antd';
 import {
   REQUEST_HTTP,
@@ -21,6 +23,7 @@ import {
   CaretDownOutlined,
   CaretRightOutlined,
   MinusCircleOutlined,
+  CopyrightCircleOutlined,
 } from '@ant-design/icons';
 import { connect } from 'dva';
 import { history } from 'umi';
@@ -54,7 +57,7 @@ const scriptModelEvent = dispatch => {
         if (resp.msg != '') {
           message.error(resp.msg);
         } else {
-          history.goBack()
+          history.goBack();
         }
       });
     },
@@ -66,59 +69,95 @@ const scriptModelEvent = dispatch => {
         if (resp.msg != '') {
           message.error(resp.msg);
         } else {
-          callback()
+          callback();
         }
       });
-    }
+    },
+    testScript: function(data) {
+      dispatch({
+        type: `${namespace}/testScript`,
+        payload: data,
+      }).then(resp => {
+        clearInterval(this.idx);
+        if (resp.msg != '') {
+          message.error(resp.msg);
+          this.setState({
+            progressStatus: 'exception',
+            progressDisabled: false,
+          });
+        } else {
+          message.success('测试成功');
+          this.setState({
+            progressStatus: 'success',
+            progressPercent: 100,
+            progressDisabled: false,
+          });
+        }
+      });
+    },
   };
 };
 @connect(null, scriptModelEvent)
 export default class create_edit extends PureComponent {
-
-
   constructor(props) {
     super(props);
-    let data = this.getStateData()
+    let data = this.getStateData();
+    console.log(data);
     this.state = {
-      ...data
-    }
-    this.form = React.createRef()
+      ...data,
+
+      progressDisabled: false,
+      progressPercent: 0,
+      progressStatus: '',
+      progressIsShow: false,
+    };
+    this.form = React.createRef();
   }
 
   componentDidUpdate(prevProps, prevState, snapshot) {
-    if (this.props.script && (this.props.script.name !== prevProps.script.name)) {
-      let script = this.getStateData()
+    if (this.props.script && this.props.script.name !== prevProps.script.name) {
+      let script = this.getStateData();
       this.setState({
-        ...script
-      })
+        ...script,
+      });
 
       // 需要手动更新表单数据
-      let data = script.data
+      let data = script.data;
       let formData = {
         name: script.name,
         protocol: script.protocol,
         url: data.url,
-        method: data.httpOptions.method
+        method: data.httpOptions.method,
+      };
+      if (
+        data.transactionOptions &&
+        data.transactionOptions.transactionOptionsData
+      ) {
+        for (let i in data.transactionOptions.transactionOptionsData) {
+          formData['item_name'.i] =
+            data.transactionOptions.transactionOptionsData[i].name;
+          formData['item_url'.i] =
+            data.transactionOptions.transactionOptionsData[i].url;
+          formData['item_method'.i] =
+            data.transactionOptions.transactionOptionsData[i].method;
+          formData['item_inteval'.i] =
+            data.transactionOptions.transactionOptionsData[i].interval;
+        }
       }
-      for (let i in data.transactionOptionsData) {
-        formData["item_name".i] = data.transactionOptionsData[i].name;
-        formData["item_url".i] = data.transactionOptionsData[i].url;
-        formData["item_method".i] = data.transactionOptionsData[i].method;
-        formData["item_inteval".i] = data.transactionOptionsData[i].interval;
-      }
+
       this.form.current.setFieldsValue({
-        ...formData
-      })
+        ...formData,
+      });
     }
   }
 
   getStateData = () => {
     let data = this.props.script ? this.props.script : false;
     if (data == false) {
-      this.isUpdate = false
+      this.isUpdate = false;
       return {
         type: this.getType(),
-        name: "",
+        name: '',
         protocol: REQUEST_HTTP,
         data: {
           url: '',
@@ -130,29 +169,31 @@ export default class create_edit extends PureComponent {
           sendData: {
             dataFieldList: [],
           },
-          transactionOptionsData: [],
+          transactionOptions: {
+            transactionOptionsData: [],
+          },
         },
-      }
+      };
     }
-    this.isUpdate = true
+    this.isUpdate = true;
     return {
-        id: data.ID,
-        type: this.getType(),
-        name: data.name,
-        protocol: data.protocol,
-        data: JSON.parse(data.data),
-      }
-  }
+      id: data.ID,
+      type: this.getType(),
+      name: data.name,
+      protocol: data.protocol,
+      data: JSON.parse(data.data),
+    };
+  };
 
   getType = () => {
     if (this.props.location && this.props.location.query.type) {
-      return this.props.location.query.type
+      return this.props.location.query.type;
     }
     if (this.props.script) {
-      return this.props.script.type
+      return this.props.script.type;
     }
-    return TYPE_COMMON
-  }
+    return TYPE_COMMON;
+  };
 
   handelName = e => {
     this.setState({
@@ -174,9 +215,35 @@ export default class create_edit extends PureComponent {
     }
   };
 
+  scriptTest = () => {
+    if (this.state.progressDisabled) {
+      message.warning('请勿重复点击');
+      return;
+    }
+    this.setState({
+      progressPercent: 0,
+    });
+    this.idx = setInterval(() => {
+      this.setState(state => {
+        let percent = parseInt(state.progressPercent) + 1;
+        let status = 'active';
+        return {
+          progressPercent: percent,
+          progressStatus: status,
+        };
+      });
+    }, 100);
+
+    this.setState({
+      progressIsShow: true,
+      progressDisabled: true,
+    });
+    this.props.testScript.call(this, JSON.parse(JSON.stringify(this.state)));
+  };
+
   addTransactionRow = e => {
     let data = this.state.data;
-    data.transactionOptionsData.push({
+    data.transactionOptions.transactionOptionsData.push({
       name: '',
       url: '',
       interval: 0,
@@ -192,7 +259,20 @@ export default class create_edit extends PureComponent {
 
   delTransactionRow = (index, e) => {
     let data = this.state.data;
-    data.transactionOptionsData.splice(index, 1);
+    data.transactionOptions.transactionOptionsData.splice(index, 1);
+    this.setState({
+      data: data,
+    });
+    this.forceUpdate();
+    e.stopPropagation();
+  };
+
+  copyTransactionRow = (index, e) => {
+    let data = this.state.data;
+    let record = JSON.parse(
+      JSON.stringify(data.transactionOptions.transactionOptionsData[index]),
+    );
+    data.transactionOptions.transactionOptionsData.push(record);
     this.setState({
       data: data,
     });
@@ -205,7 +285,15 @@ export default class create_edit extends PureComponent {
     if (val == '' || val) {
       return val;
     }
+    s;
     return '';
+  };
+
+  getValueToTransaction = () => {
+    if (this.state.data.transactionOptions) {
+      return this.state.data.transactionOptions.transactionOptionsData;
+    }
+    return [];
   };
 
   setValueToData = (field, e) => {
@@ -263,10 +351,15 @@ export default class create_edit extends PureComponent {
   setTransactionData = (index, field, e) => {
     let data = this.state.data;
     let value = e && e.target ? e.target.value : e;
-    if (!data.transactionOptionsData) {
-      data.transactionOptionsData = [];
+    if (
+      !data.transactionOptions ||
+      !data.transactionOptions.transactionOptionsData
+    ) {
+      data.transactionOptions = {
+        transactionOptionsData: [],
+      };
     }
-    data.transactionOptionsData[index][field] = value;
+    data.transactionOptions.transactionOptionsData[index][field] = value;
     this.setState({
       data: data,
     });
@@ -276,27 +369,33 @@ export default class create_edit extends PureComponent {
   getTransactionData = (index, field) => {
     alert(index);
     if (
-      !this.state.data.transactionOptionsData ||
-      this.state.data.transactionOptionsData[index] ||
-      this.state.data.transactionOptionsData[index][field]
+      !!this.state.data.transactionOptions ||
+      !this.state.data.transactionOptions.transactionOptionsData ||
+      !this.state.data.transactionOptions.transactionOptionsData[index] ||
+      !this.state.data.transactionOptions.transactionOptionsData[index][field]
     ) {
       return '';
     }
-    return this.state.data.transactionOptionsData[index][field];
+    return this.state.data.transactionOptions.transactionOptionsData[index][
+      field
+    ];
   };
 
   setTransactionSendData = (index, e) => {
     let data = this.state.data;
     let value = e && e.target ? e.target.value : e;
     if (
-      !data.transactionOptionsData[index].sendData ||
-      !data.transactionOptionsData[index].sendData.dataFieldList
+      !data.transactionOptions.transactionOptionsData[index].sendData ||
+      !data.transactionOptions.transactionOptionsData[index].sendData
+        .dataFieldList
     ) {
-      data.transactionOptionsData[index].sendData = {
+      data.transactionOptions.transactionOptionsData[index].sendData = {
         dataFieldList: [],
       };
     }
-    data.transactionOptionsData[index].sendData.dataFieldList = value;
+    data.transactionOptions.transactionOptionsData[
+      index
+    ].sendData.dataFieldList = value;
     this.setState({
       data: data,
     });
@@ -305,11 +404,14 @@ export default class create_edit extends PureComponent {
 
   getTransactionSendData = index => {
     if (
-      this.state.data.transactionOptionsData[index].sendData &&
-      this.state.data.transactionOptionsData[index].sendData.dataFieldList
+      this.state.data.transactionOptions &&
+      this.state.data.transactionOptions.transactionOptionsData[index]
+        .sendData &&
+      this.state.data.transactionOptions.transactionOptionsData[index].sendData
+        .dataFieldList
     ) {
-      return this.state.data.transactionOptionsData[index].sendData
-        .dataFieldList;
+      return this.state.data.transactionOptions.transactionOptionsData[index]
+        .sendData.dataFieldList;
     }
     return {};
   };
@@ -317,10 +419,12 @@ export default class create_edit extends PureComponent {
   setTransactionHttpOptions = (index, field, e) => {
     let data = this.state.data;
     let value = e && e.target ? e.target.value : e;
-    if (!data.transactionOptionsData[index].httpOptions) {
-      data.transactionOptionsData[index].httpOptions = {};
+    if (!data.transactionOptions.transactionOptionsData[index].httpOptions) {
+      data.transactionOptions.transactionOptionsData[index].httpOptions = {};
     }
-    data.transactionOptionsData[index].httpOptions[field] = value;
+    data.transactionOptions.transactionOptionsData[index].httpOptions[
+      field
+    ] = value;
     this.setState({
       data: data,
     });
@@ -329,12 +433,17 @@ export default class create_edit extends PureComponent {
 
   getTransactionHttpOptions = (index, field) => {
     if (
-      !this.state.data.transactionOptionsData[index].httpOptions ||
-      !this.state.data.transactionOptionsData[index].httpOptions[field]
+      !this.state.data.transactionOptions ||
+      !this.state.data.transactionOptions.transactionOptionsData ||
+      !this.state.data.transactionOptions.transactionOptionsData[index]
+        .httpOptions ||
+      !this.state.data.transactionOptions.transactionOptionsData[index]
+        .httpOptions[field]
     ) {
       return '';
     }
-    return this.state.data.transactionOptionsData[index].httpOptions[field];
+    return this.state.data.transactionOptions.transactionOptionsData[index]
+      .httpOptions[field];
   };
 
   render() {
@@ -372,41 +481,43 @@ export default class create_edit extends PureComponent {
             </Select>
           </Form.Item>
 
-          <Form.Item
-            initialValue={this.getValueToData('url')}
-            style={{ display: this.state.type == TYPE_COMMON ? null : 'none' }}
-            label="URL"
-            name="url"
-            rules={
-              this.state.type == TYPE_COMMON
-                ? [
-                    {
-                      required: true,
-                      message: '请填写URL',
-                    },
-                  ]
-                : null
-            }
-          >
-            <Input onChange={this.setValueToData.bind(this, 'url')} />
-          </Form.Item>
+          {this.getType() == TYPE_COMMON ? (
+            <Fragment>
+              <Form.Item
+                initialValue={this.getValueToData('url')}
+                label="URL"
+                name="url"
+                rules={[
+                  {
+                    required: true,
+                    message: '请填写URL',
+                  },
+                ]}
+              >
+                <Input onChange={this.setValueToData.bind(this, 'url')} />
+              </Form.Item>
 
-          <Form.Item
-            initialValue={this.getHttpOptions('method')}
-            style={{ display: this.state.protocol == REQUEST_HTTP ? null : 'none' }}
-            name="method"
-            label="Method"
-          >
-            <Radio.Group onChange={this.setHttpOptions.bind(this, 'method')}>
-              {defaultMethods.map(function(item, index) {
-                return (
-                  <Radio key={index} value={item}>
-                    {item}
-                  </Radio>
-                );
-              })}
-            </Radio.Group>
-          </Form.Item>
+              {this.state.protocol == REQUEST_HTTP ? (
+                <Form.Item
+                  initialValue={this.getHttpOptions('method')}
+                  name="method"
+                  label="Method"
+                >
+                  <Radio.Group
+                    onChange={this.setHttpOptions.bind(this, 'method')}
+                  >
+                    {defaultMethods.map(function(item, index) {
+                      return (
+                        <Radio key={index} value={item}>
+                          {item}
+                        </Radio>
+                      );
+                    })}
+                  </Radio.Group>
+                </Form.Item>
+              ) : null}
+            </Fragment>
+          ) : null}
 
           <Form.Item label="参数">
             <div
@@ -416,232 +527,248 @@ export default class create_edit extends PureComponent {
                 padding: 10,
               }}
             >
-              <Form.Item
-                style={{
-                  display: this.state.type == TYPE_COMMON ? null : 'none',
-                }}
-              >
-                <Tabs defaultActiveKey="1">
-                  <TabPane tab="Body" key="1">
-                    <Body
-                      data={this.getSendData()}
-                      render={this.setSendData}
-                    ></Body>
-                  </TabPane>
-                  {this.state.protocol == REQUEST_HTTP ? (
-                    <TabPane tab="Header" key="2">
-                      <Kv
-                        data={this.getHttpOptions('header')}
-                        render={this.setHttpOptions.bind(this, 'header')}
-                      ></Kv>
+              {this.getType() == TYPE_COMMON ? (
+                <Form.Item>
+                  <Tabs defaultActiveKey="1">
+                    <TabPane tab="Body" key="1">
+                      <Body
+                        data={this.getSendData()}
+                        render={this.setSendData}
+                      ></Body>
                     </TabPane>
-                  ) : null}
-                  {this.state.protocol == REQUEST_HTTP ? (
-                    <TabPane tab="Cookie" key="3">
-                      <Kv
-                        data={this.getHttpOptions('cookie')}
-                        render={this.setHttpOptions.bind(this, 'cookie')}
-                      ></Kv>
-                    </TabPane>
-                  ) : null}
-                </Tabs>
-              </Form.Item>
+                    {this.state.protocol == REQUEST_HTTP ? (
+                      <TabPane tab="Header" key="2">
+                        <Kv
+                          data={this.getHttpOptions('header')}
+                          render={this.setHttpOptions.bind(this, 'header')}
+                        ></Kv>
+                      </TabPane>
+                    ) : null}
+                    {this.state.protocol == REQUEST_HTTP ? (
+                      <TabPane tab="Cookie" key="3">
+                        <Kv
+                          data={this.getHttpOptions('cookie')}
+                          render={this.setHttpOptions.bind(this, 'cookie')}
+                        ></Kv>
+                      </TabPane>
+                    ) : null}
+                  </Tabs>
+                </Form.Item>
+              ) : null}
 
-              <Form.Item
-                style={{
-                  display: this.state.type == TYPE_TRANSACTION ? null : 'none',
-                }}
-              >
-                <div style={{ width: '100%', height: 32 }}>
-                  <Button
-                    size="small"
-                    style={{ position: 'absolute', right: '100px' }}
-                    type="dashed"
-                    onClick={this.addTransactionRow}
-                  >
-                    新增事务
-                  </Button>
-                  <Button
-                    size="small"
-                    style={{ position: 'absolute', right: '10px' }}
-                    type="dashed"
-                  >
-                    测试事务
-                  </Button>
-                </div>
-                <Collapse
-                  expandIconPosition="right"
-                  bordered={true}
-                  expandIcon={({ isActive }) => {
-                    return isActive ? (
-                      <CaretDownOutlined />
-                    ) : (
-                      <CaretRightOutlined />
-                    );
+              {this.getType() == TYPE_TRANSACTION ? (
+                <Form.Item
+                  style={{
+                    display:
+                      this.state.type == TYPE_TRANSACTION ? null : 'none',
                   }}
                 >
-                  {this.getValueToData('transactionOptionsData')
-                    ? this.getValueToData('transactionOptionsData').map(
-                        (item, index) => {
-                          return (
-                            <Panel
-                              extra={
-                                <MinusCircleOutlined
-                                  onClick={this.delTransactionRow.bind(
-                                    this,
-                                    index,
-                                  )}
-                                />
-                              }
-                              header={item.name}
-                              key={index}
-                              style={customPanelStyle}
-                            >
-                              <Form.Item
-                                initialValue={item.name}
-                                name={`item_name${index}`}
-                                label="名称"
-                                rules={[
-                                  {
-                                    required: true,
-                                    message: '请填写名称',
-                                  },
-                                ]}
-                              >
-                                <Input
-                                  onChange={this.setTransactionData.bind(
-                                    this,
-                                    index,
-                                    'name',
-                                  )}
-                                />
-                              </Form.Item>
+                  <div style={{ width: '100%', height: 32 }}>
+                    <Button
+                      size="small"
+                      style={{ position: 'absolute', right: '10px' }}
+                      type="dashed"
+                      onClick={this.addTransactionRow}
+                    >
+                      新增事务
+                    </Button>
+                  </div>
+                  <Collapse
+                    expandIconPosition="right"
+                    bordered={true}
+                    expandIcon={({ isActive }) => {
+                      return isActive ? (
+                        <CaretDownOutlined />
+                      ) : (
+                        <CaretRightOutlined />
+                      );
+                    }}
+                  >
+                    {this.getValueToTransaction().map((item, index) => {
+                      return (
+                        <Panel
+                          extra={
+                            <div>
+                              <CopyrightCircleOutlined
+                                onClick={this.copyTransactionRow.bind(
+                                  this,
+                                  index,
+                                )}
+                              />
+                              &nbsp;&nbsp;&nbsp;
+                              <MinusCircleOutlined
+                                onClick={this.delTransactionRow.bind(
+                                  this,
+                                  index,
+                                )}
+                              />
+                            </div>
+                          }
+                          header={item.name}
+                          key={index}
+                          style={customPanelStyle}
+                        >
+                          <Form.Item
+                            initialValue={item.name}
+                            name={`item_name${index}`}
+                            label="名称"
+                            rules={[
+                              {
+                                required: true,
+                                message: '请填写名称',
+                              },
+                            ]}
+                          >
+                            <Input
+                              onChange={this.setTransactionData.bind(
+                                this,
+                                index,
+                                'name',
+                              )}
+                            />
+                          </Form.Item>
 
-                              <Form.Item
-                                initialValue={item.url}
-                                name={`item_url${index}`}
-                                label="URL"
-                                rules={[
-                                  {
-                                    required: true,
-                                    message: '请填写URL',
-                                  },
-                                ]}
-                              >
-                                <Input
-                                  onChange={this.setTransactionData.bind(
-                                    this,
-                                    index,
-                                    'url',
-                                  )}
-                                />
-                              </Form.Item>
+                          <Form.Item
+                            initialValue={item.url}
+                            name={`item_url${index}`}
+                            label="URL"
+                            rules={[
+                              {
+                                required: true,
+                                message: '请填写URL',
+                              },
+                            ]}
+                          >
+                            <Input
+                              onChange={this.setTransactionData.bind(
+                                this,
+                                index,
+                                'url',
+                              )}
+                            />
+                          </Form.Item>
 
-                              <Form.Item
-                                initialValue={
-                                  item.method
-                                    ? item.method
-                                    : defaultSelectedMethod
-                                }
-                                style={{
-                                  display:
-                                    this.state.protocol != REQUEST_TCP
-                                      ? null
-                                      : 'none',
-                                }}
-                                name={`item_method${index}`}
-                                label="Method"
-                              >
-                                <Radio.Group
-                                  onChange={this.setTransactionData.bind(
-                                    this,
+                          <Form.Item
+                            initialValue={
+                              this.getTransactionHttpOptions(index, 'method')
+                                ? this.getTransactionHttpOptions(
                                     index,
                                     'method',
-                                  )}
-                                >
-                                  {defaultMethods.map(function(item, index) {
-                                    return (
-                                      <Radio key={index} value={item}>
-                                        {item}
-                                      </Radio>
-                                    );
-                                  })}
-                                </Radio.Group>
-                              </Form.Item>
+                                  )
+                                : defaultSelectedMethod
+                            }
+                            style={{
+                              display:
+                                this.state.protocol != REQUEST_TCP
+                                  ? null
+                                  : 'none',
+                            }}
+                            name={`item_method${index}`}
+                            label="Method"
+                          >
+                            <Radio.Group
+                              onChange={this.setTransactionHttpOptions.bind(
+                                this,
+                                index,
+                                'method',
+                              )}
+                            >
+                              {defaultMethods.map(function(item, index) {
+                                return (
+                                  <Radio key={index} value={item}>
+                                    {item}
+                                  </Radio>
+                                );
+                              })}
+                            </Radio.Group>
+                          </Form.Item>
 
-                              <Form.Item
-                                initialValue={item.interval ? item.interval : 0}
-                                name={`item_interval${index}`}
-                                label="间隔时间"
-                              >
-                                <InputNumber
-                                  size="small"
-                                  onChange={this.setTransactionData.bind(
+                          <Form.Item
+                            initialValue={item.interval ? item.interval : 0}
+                            name={`item_interval${index}`}
+                            label="间隔时间"
+                          >
+                            <InputNumber
+                              size="small"
+                              onChange={this.setTransactionData.bind(
+                                this,
+                                index,
+                                'interval',
+                              )}
+                              style={{ width: 100 }}
+                              type="text"
+                            />
+                          </Form.Item>
+
+                          <Form.Item label="参数">
+                            <Tabs defaultActiveKey="1">
+                              <TabPane tab="Body" key="1">
+                                <Body
+                                  data={this.getTransactionSendData(index)}
+                                  render={this.setTransactionSendData.bind(
                                     this,
                                     index,
-                                    'interval',
                                   )}
-                                  style={{ width: 100 }}
-                                  type="text"
-                                />
-                              </Form.Item>
-
-                              <Form.Item label="参数">
-                                <Tabs defaultActiveKey="1">
-                                  <TabPane tab="Body" key="1">
-                                    <Body
-                                      data={this.getTransactionSendData(index)}
-                                      render={this.setTransactionSendData.bind(
-                                        this,
-                                        index,
-                                      )}
-                                    ></Body>
-                                  </TabPane>
-                                  {this.state.protocol == REQUEST_HTTP ? (
-                                    <TabPane tab="Header" key="2">
-                                      <Kv
-                                        data={this.getTransactionHttpOptions(
-                                          index,
-                                          'header',
-                                        )}
-                                        render={this.setTransactionHttpOptions.bind(
-                                          this,
-                                          index,
-                                          'header',
-                                        )}
-                                      ></Kv>
-                                    </TabPane>
-                                  ) : null}
-                                  {this.state.protocol == REQUEST_HTTP ? (
-                                    <TabPane tab="Cookie" key="3">
-                                      <Kv
-                                        data={this.getTransactionHttpOptions(
-                                          index,
-                                          'cookie',
-                                        )}
-                                        render={this.setTransactionHttpOptions.bind(
-                                          this,
-                                          index,
-                                          'cookie',
-                                        )}
-                                      ></Kv>
-                                    </TabPane>
-                                  ) : null}
-                                </Tabs>
-                              </Form.Item>
-                            </Panel>
-                          );
-                        },
-                      )
-                    : null}
-                </Collapse>
-              </Form.Item>
+                                ></Body>
+                              </TabPane>
+                              {this.state.protocol == REQUEST_HTTP ? (
+                                <TabPane tab="Header" key="2">
+                                  <Kv
+                                    data={this.getTransactionHttpOptions(
+                                      index,
+                                      'header',
+                                    )}
+                                    render={this.setTransactionHttpOptions.bind(
+                                      this,
+                                      index,
+                                      'header',
+                                    )}
+                                  ></Kv>
+                                </TabPane>
+                              ) : null}
+                              {this.state.protocol == REQUEST_HTTP ? (
+                                <TabPane tab="Cookie" key="3">
+                                  <Kv
+                                    data={this.getTransactionHttpOptions(
+                                      index,
+                                      'cookie',
+                                    )}
+                                    render={this.setTransactionHttpOptions.bind(
+                                      this,
+                                      index,
+                                      'cookie',
+                                    )}
+                                  ></Kv>
+                                </TabPane>
+                              ) : null}
+                            </Tabs>
+                          </Form.Item>
+                        </Panel>
+                      );
+                    })}
+                  </Collapse>
+                </Form.Item>
+              ) : null}
             </div>
           </Form.Item>
 
           <Form.Item wrapperCol={{ sm: { offset: 4 } }}>
+            <div style={{ display: this.state.progressIsShow ? null : 'none' }}>
+              <Progress
+                percent={this.state.progressPercent}
+                status={this.state.progressStatus}
+                size="small"
+              />
+            </div>
             <Button type="primary" htmlType="submit">
               提交
+            </Button>
+            <Button
+              style={{ marginLeft: 10 }}
+              type="dashed"
+              onClick={this.scriptTest}
+            >
+              测试脚本
             </Button>
           </Form.Item>
         </Form>
