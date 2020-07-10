@@ -102,7 +102,6 @@ export default class create_edit extends PureComponent {
   constructor(props) {
     super(props);
     let data = this.getStateData();
-    console.log(data);
     this.state = {
       ...data,
 

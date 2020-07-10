@@ -1,11 +1,11 @@
 import request from '../utils/request';
 import { REQUEST_URL } from '../constant';
 
-const dataUrl = REQUEST_URL + '/script';
-const addUrl = REQUEST_URL + '/script/add';
-const editUrl = REQUEST_URL + '/script/edit';
-const delUrl = REQUEST_URL + '/script/delete';
-const testUrl = REQUEST_URL + '/script/test';
+const scriptDataUrl = REQUEST_URL + '/script';
+const scriptAddUrl = REQUEST_URL + '/script/add';
+const scriptEditUrl = REQUEST_URL + '/script/edit';
+const scriptDelUrl = REQUEST_URL + '/script/delete';
+const scriptTestUrl = REQUEST_URL + '/script/test';
 
 export default {
   namespace: 'script',
@@ -15,14 +15,14 @@ export default {
   },
   effects: {
     *getScriptList(_, { call, put }) {
-      const resp = yield call(request, dataUrl);
+      const resp = yield call(request, scriptDataUrl);
       if (resp.msg == '') {
         yield put({ type: 'setScriptList', payload: resp.data });
       }
       return resp;
     },
     *getScript({ payload: id }, { call, put }) {
-      const script = yield call(request, dataUrl, {
+      const script = yield call(request, scriptDataUrl, {
         body: {
           id: id,
         },
@@ -31,18 +31,18 @@ export default {
     },
     *addScript({ payload: script }, { call, put }) {
       script.data = JSON.stringify(script.data);
-      return yield call(request, addUrl, {
+      return yield call(request, scriptAddUrl, {
         body: JSON.stringify(script),
       });
     },
     *editScript({ payload: script }, { call, put }) {
       script.data = JSON.stringify(script.data);
-      return yield call(request, editUrl, {
+      return yield call(request, scriptEditUrl, {
         body: JSON.stringify(script),
       });
     },
     *delScript({ payload: id }, { call, put }) {
-      return yield call(request, delUrl, {
+      return yield call(request, scriptDelUrl, {
         body: JSON.stringify({
           id: id,
         }),
@@ -50,7 +50,7 @@ export default {
     },
     *testScript({ payload: script }, { call, put }) {
       script.data = JSON.stringify(script.data);
-      return yield call(request, testUrl, {
+      return yield call(request, scriptTestUrl, {
         body: JSON.stringify(script),
       });
     },
