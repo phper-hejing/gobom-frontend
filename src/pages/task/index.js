@@ -82,6 +82,12 @@ const taskModelEvent = dispatch => {
         payload: index,
       });
     },
+    saveTask: data => {
+      dispatch({
+        type: `${namespace}/saveTask`,
+        payload: data,
+      });
+    },
   };
 };
 const websocketModelState = state => {
@@ -97,6 +103,10 @@ const websocketModelEvent = dispatch => {
     },
     runTask: function(taskId) {
       if (this.props.websocket.ws && this.props.websocket.ws.readyState == 1) {
+        if (this.state.startTasks[taskId]) {
+          message.error('任务正在运行');
+          return;
+        }
         this.props.websocket.ws.send(
           JSON.stringify({
             type: WS_TASK_RUN,
@@ -105,6 +115,9 @@ const websocketModelEvent = dispatch => {
             },
           }),
         );
+        this.setCurrentTask(taskId);
+      } else {
+        message.error('websocket连接失败，请刷新页面重试');
       }
     },
     stopTask: function(taskId) {
@@ -117,6 +130,9 @@ const websocketModelEvent = dispatch => {
             },
           }),
         );
+        this.setCurrentTask(taskId);
+      } else {
+        message.error('websocket连接失败，请刷新页面重试');
       }
     },
     getReport: function(taskId) {
@@ -129,6 +145,8 @@ const websocketModelEvent = dispatch => {
             },
           }),
         );
+      } else {
+        message.error('websocket连接失败，请刷新页面重试');
       }
     },
   };
@@ -143,6 +161,8 @@ export default class task extends PureComponent {
       startTasks: {}, // 开启的任务列表 taskId:bool
       tasksStatus: {}, // 任务对应的状态 taskId:int
       curTaskId: 0, // 当前查看的任务id
+      taskInterval: {}, // 任务对应的定时器,定时report
+      editData: {},
       columns: [
         {
           title: '任务名称',
@@ -156,13 +176,6 @@ export default class task extends PureComponent {
           title: '状态',
           dataIndex: 'status',
           render: (status, record) => {
-            console.log(
-              tagStatusColor[
-                this.state.tasksStatus[record.taskId]
-                  ? this.state.tasksStatus[record.taskId]
-                  : status
-              ],
-            );
             return (
               <Tag
                 color={
@@ -204,14 +217,20 @@ export default class task extends PureComponent {
                   停止
                 </a>
                 &nbsp;
-                <a onClick={this.setCurrentTask.bind(this, record.taskId)}>
-                  查看
+                {/*<a onClick={this.setCurrentTask.bind(this, record.taskId)}>*/}
+                {/*查看*/}
+                {/*</a>*/}
+                {/*&nbsp;*/}
+                <a
+                  onClick={this.editTask.bind(this, record)}
+                  disabled={this.state.startTasks[record.taskId] ? true : false}
+                >
+                  编辑
                 </a>
                 &nbsp;
-                <a disabled={this.state.start}>编辑</a>&nbsp;
                 <a
                   onClick={this.props.delTask.bind(this, record)}
-                  disabled={this.state.start}
+                  disabled={this.state.startTasks[record.taskId] ? true : false}
                 >
                   删除
                 </a>
@@ -228,51 +247,92 @@ export default class task extends PureComponent {
     this.props.getTaskList();
     this.props.registerHandel({
       key: WS_TASK_REPORT,
-      callback: (ws, data) => {
-        console.log(data);
+      callback: (ws, resp) => {
+        if (resp.data.task.status != STATUS_RUN) {
+          this.delTaskInterval(resp.data.task.taskId);
+          this.delRunTasks(resp.data.task.taskId);
+          this.setTasksStatus(resp.data.task.taskId, resp.data.task.status);
+        }
+        this.props.saveTask(resp.data);
       },
     });
     this.props.registerHandel({
       key: WS_TASK_RUN,
-      callback: (ws, data) => {
-        let taskId = data.data.taskId;
-        this.setRunTasks(taskId);
+      callback: (ws, resp) => {
+        if (resp.error != '') {
+        }
+        let taskId = resp.data.taskId;
+        this.setRunTask(taskId);
         this.setTasksStatus(taskId, STATUS_RUN);
+        this.intervalReport(taskId);
       },
     });
     this.props.registerHandel({
       key: WS_TASK_STOP,
-      callback: (ws, data) => {
-        let taskId = data.data.taskId;
+      callback: (ws, resp) => {
+        let taskId = resp.data.taskId;
         this.delRunTasks(taskId);
-        this.setTasksStatus(taskId, STATUS_STOP);
+        if (resp.error != '') {
+          this.setTasksStatus(taskId, STATUS_OVER);
+        } else {
+          this.setTasksStatus(taskId, STATUS_STOP);
+        }
       },
     });
   }
 
   componentDidUpdate(prevProps, prevState) {
     if (this.props.task.taskList.length != prevProps.task.taskList.length) {
+      let taskList = {};
       for (let index in this.props.task.taskList) {
         if (this.props.task.taskList[index].status == 2) {
-          this.setRunTasks(this.props.task.taskList[index].taskId);
+          taskList[this.props.task.taskList[index].taskId] = true;
+          setTimeout(() => {
+            // 等待websocket初始化完成
+            this.intervalReport(this.props.task.taskList[index].taskId);
+          }, 1000);
         }
       }
+      this.setRunTasks(taskList);
     }
   }
 
+  intervalReport = taskId => {
+    let interval = setInterval(() => {
+      this.props.getReport.call(this, taskId);
+    }, 1000);
+    this.setTaskInterval(taskId, interval);
+  };
+
   setCurrentTask = taskId => {
+    for (let index in this.props.task.taskList) {
+      if (this.props.task.taskList[index]['taskId'] == taskId) {
+        this.setState({
+          curTaskId: index,
+        });
+      }
+    }
+  };
+
+  setRunTask = taskId => {
+    if (!taskId) {
+      console.debug('taskId is null');
+      return;
+    }
+    let taskList = JSON.parse(JSON.stringify(this.state.startTasks));
+    taskList[taskId] = true;
     this.setState({
-      curTaskId: taskId,
+      startTasks: taskList,
     });
   };
 
-  setRunTasks = taskId => {
-    let startTasks = JSON.parse(JSON.stringify(this.state.startTasks));
-    if (!startTasks[taskId]) {
-      startTasks[taskId] = true;
+  setRunTasks = taskList => {
+    if (!taskList || Object.keys(taskList).length == 0) {
+      console.debug('taskIdList is null');
+      return;
     }
     this.setState({
-      startTasks: startTasks,
+      startTasks: taskList,
     });
   };
 
@@ -300,6 +360,35 @@ export default class task extends PureComponent {
     });
   };
 
+  setTaskInterval = (taskId, interval) => {
+    let taskInterval = JSON.parse(JSON.stringify(this.state.taskInterval));
+    if (!taskInterval[taskId]) {
+      taskInterval[taskId] = interval;
+    }
+    this.setState({
+      taskInterval: taskInterval,
+    });
+  };
+
+  delTaskInterval = taskId => {
+    let taskInterval = JSON.parse(JSON.stringify(this.state.taskInterval));
+    let interval = taskInterval[taskId];
+    if (interval) {
+      clearInterval(interval);
+      delete taskInterval[taskId];
+    }
+    this.setState({
+      taskInterval: taskInterval,
+    });
+  };
+
+  editTask = record => {
+    this.isModelShow();
+    this.setState({
+      editData: record,
+    });
+  };
+
   render() {
     return (
       <div>
@@ -307,6 +396,26 @@ export default class task extends PureComponent {
           <Col span={16}>
             <div>
               <Row>
+                <Col span={6}>
+                  <Card
+                    title={false}
+                    size="small"
+                    bordered={false}
+                    style={{ width: 300 }}
+                  >
+                    <div>
+                      <Statistic
+                        title="任务名称"
+                        value={
+                          this.props.task.taskList[this.state.curTaskId]
+                            ? this.props.task.taskList[this.state.curTaskId]
+                                .name
+                            : '--'
+                        }
+                      />
+                    </div>
+                  </Card>
+                </Col>
                 <Col span={6}>
                   <Card
                     title={false}
@@ -340,7 +449,10 @@ export default class task extends PureComponent {
                         value={
                           this.props.task.taskList[this.state.curTaskId]
                             ? this.props.task.taskList[this.state.curTaskId]
-                                .duration
+                                .duration == 0
+                              ? '手动停止'
+                              : this.props.task.taskList[this.state.curTaskId]
+                                  .duration
                             : '--'
                         }
                       />
@@ -375,18 +487,6 @@ export default class task extends PureComponent {
                             ],
                         }}
                       />
-                    </div>
-                  </Card>
-                </Col>
-                <Col span={6}>
-                  <Card
-                    title={false}
-                    size="small"
-                    bordered={false}
-                    style={{ width: 300 }}
-                  >
-                    <div>
-                      <Statistic title="--" value="--" />
                     </div>
                   </Card>
                 </Col>
@@ -486,6 +586,13 @@ export default class task extends PureComponent {
               size="small"
               columns={this.state.columns}
               dataSource={this.props.task.taskList}
+              onRow={record => {
+                return {
+                  onClick: event => {
+                    this.setCurrentTask(record.taskId);
+                  },
+                };
+              }}
             />
             <Modal
               width={1000}
@@ -494,7 +601,7 @@ export default class task extends PureComponent {
               visible={this.state.modelShow}
               footer={null}
             >
-              <CraeteEdit></CraeteEdit>
+              <CraeteEdit data={this.state.editData}></CraeteEdit>
             </Modal>
           </Col>
         </Row>

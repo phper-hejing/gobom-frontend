@@ -57,11 +57,12 @@ export default class create_edit extends PureComponent {
   constructor(props) {
     super(props);
     this.state = {
+      taskId: this.props.data ? this.props.data.taskId : '',
       name: this.props.data ? this.props.data.name : '',
       conCurrent: this.props.data ? this.props.data.conCurrent : 0,
       duration: this.props.data ? this.props.data.duration : 0,
       scriptId: this.props.data ? this.props.data.scriptId : false,
-      isCreate: this.props.data ? false : true,
+      isCreate: this.props.data && this.props.data.taskId ? false : true,
     };
     this.form = React.createRef();
     this.props.getScriptList();
@@ -92,6 +93,7 @@ export default class create_edit extends PureComponent {
   };
 
   handelSubmit = e => {
+    console.log(e);
     if (this.state.isCreate) {
       this.props.add(this.state);
     } else {

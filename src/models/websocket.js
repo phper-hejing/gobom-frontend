@@ -14,7 +14,8 @@ export default {
     },
   },
   effects: {
-    *init({ payload: url }, { put, select }) {
+    *init({ payload: data }, { put, select }) {
+      let { url, callback } = data;
       let { callbackList } = yield select(state => {
         return { callbackList: state.websocket.callbackList };
       });
@@ -23,13 +24,13 @@ export default {
 
       ws.onopen = function(event) {
         console.log('ws open connection');
+        callback();
       };
 
       ws.onmessage = function(event) {
         let data = JSON.parse(event.data);
         if (data.error != '') {
           alert(data.error);
-          return;
         }
         if (callbackList[data.type]) {
           callbackList[data.type](ws, data);

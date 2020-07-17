@@ -8,7 +8,7 @@ const taskDelUrl = REQUEST_URL + '/task/delete';
 const taskRunUrl = REQUEST_URL + '/task/run';
 const taskStopUrl = REQUEST_URL + '/task/stop';
 
-const taskDefault = data => {
+const taskDefault = (data, index) => {
   if (!data || !data.task) {
     return {
       key: 0,
@@ -22,20 +22,42 @@ const taskDefault = data => {
       maxTime: '--',
       minTime: '--',
       createdAt: '--',
+      scriptId: '--',
     };
   }
   return {
-    key: data.task.taskId,
+    key: index,
     taskId: data.task.taskId,
     name: data.name,
-    conCurrent: data.task.worker.options.conCurrent,
-    duration: data.task.worker.options.duration,
+    conCurrent: data.task.worker.conCurrent,
+    duration: data.task.worker.duration,
     status: data.task.status,
     successNum: data.task.worker.report.successNum,
     failureNum: data.task.worker.report.failureNum,
     maxTime: data.task.worker.report.maxTime,
     minTime: data.task.worker.report.minTime,
     createdAt: data.CreatedAt,
+    scriptId: data.scriptId,
+  };
+};
+
+const taskSave = (oldData, newData) => {
+  if (!newData) {
+    return oldData;
+  }
+  return {
+    key: oldData.key,
+    taskId: oldData.taskId,
+    name: oldData.name,
+    conCurrent: newData.task.worker.conCurrent,
+    duration: newData.task.worker.duration,
+    status: newData.task.status,
+    successNum: newData.task.worker.report.successNum,
+    failureNum: newData.task.worker.report.failureNum,
+    maxTime: newData.task.worker.report.maxTime,
+    minTime: newData.task.worker.report.minTime,
+    createdAt: oldData.createdAt,
+    scriptId: oldData.scriptId,
   };
 };
 
@@ -86,23 +108,13 @@ export default {
   },
   reducers: {
     setTaskList(state, { payload: dataList }) {
-      let taskList = JSON.parse(JSON.stringify(state.taskList));
-      for (let data of dataList) {
-        taskList[data.task.taskId] = taskDefault(data);
+      let taskList = [];
+      for (let index in dataList) {
+        taskList.push(taskDefault(dataList[index], index));
       }
       return {
         ...state,
         taskList: taskList,
-      };
-    },
-    setTask(state, { payload: index }) {
-      if (!state.taskList[index]) {
-        console.log('查找task失败，data :', state.taskList);
-        console.log('index: ', index);
-      }
-      return {
-        ...state,
-        task: state.taskList[index],
       };
     },
     moveTask(state, { payload: key }) {
@@ -115,6 +127,17 @@ export default {
         }),
       };
     },
-    saveTask(state, { payload: data }) {},
+    saveTask(state, { payload: data }) {
+      let taskList = JSON.parse(JSON.stringify(state.taskList));
+      for (let index in taskList) {
+        if (taskList[index].taskId == data.task.taskId) {
+          taskList[index] = taskSave(taskList[index], data);
+        }
+      }
+      return {
+        ...state,
+        taskList: taskList,
+      };
+    },
   },
 };
