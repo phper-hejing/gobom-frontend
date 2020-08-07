@@ -10,6 +10,8 @@ import {
   Table,
   message,
   Modal,
+  Tabs,
+  Empty,
 } from 'antd';
 import {
   CheckOutlined,
@@ -20,6 +22,10 @@ import {
 import { connect } from 'dva';
 import CraeteEdit from './create_edit';
 import { WS_TASK_REPORT, WS_TASK_RUN, WS_TASK_STOP } from '../../constant';
+import Line from '../component/line';
+import Pie from '../component/pie';
+
+const { TabPane } = Tabs;
 
 const STATUS_NONE = 0;
 const STATUS_WAIT = 1;
@@ -248,6 +254,10 @@ export default class task extends PureComponent {
     this.props.registerHandel({
       key: WS_TASK_REPORT,
       callback: (ws, resp) => {
+        if (!resp.data) {
+          return;
+        }
+
         if (resp.data.task.status != STATUS_RUN) {
           this.delTaskInterval(resp.data.task.taskId);
           this.delRunTasks(resp.data.task.taskId);
@@ -393,16 +403,11 @@ export default class task extends PureComponent {
     return (
       <div>
         <Row>
-          <Col span={16}>
+          <Col span={16} style={{ height: 320 }}>
             <div>
               <Row>
                 <Col span={6}>
-                  <Card
-                    title={false}
-                    size="small"
-                    bordered={false}
-                    style={{ width: 300 }}
-                  >
+                  <Card title={false} size="small" bordered={false}>
                     <div>
                       <Statistic
                         title="任务名称"
@@ -417,12 +422,7 @@ export default class task extends PureComponent {
                   </Card>
                 </Col>
                 <Col span={6}>
-                  <Card
-                    title={false}
-                    size="small"
-                    bordered={false}
-                    style={{ width: 300 }}
-                  >
+                  <Card title={false} size="small" bordered={false}>
                     <div>
                       <Statistic
                         title="并发数"
@@ -437,12 +437,7 @@ export default class task extends PureComponent {
                   </Card>
                 </Col>
                 <Col span={6}>
-                  <Card
-                    title={false}
-                    size="small"
-                    bordered={false}
-                    style={{ width: 300 }}
-                  >
+                  <Card title={false} size="small" bordered={false}>
                     <div>
                       <Statistic
                         title="剩余时间（ms）"
@@ -450,7 +445,7 @@ export default class task extends PureComponent {
                           this.props.task.taskList[this.state.curTaskId]
                             ? this.props.task.taskList[this.state.curTaskId]
                                 .duration == 0
-                              ? '手动停止'
+                              ? '--'
                               : this.props.task.taskList[this.state.curTaskId]
                                   .duration
                             : '--'
@@ -460,12 +455,7 @@ export default class task extends PureComponent {
                   </Card>
                 </Col>
                 <Col span={6}>
-                  <Card
-                    title={false}
-                    size="small"
-                    bordered={false}
-                    style={{ width: 300 }}
-                  >
+                  <Card title={false} size="small" bordered={false}>
                     <div>
                       <Statistic
                         title="任务状态"
@@ -492,12 +482,7 @@ export default class task extends PureComponent {
                 </Col>
 
                 <Col span={6}>
-                  <Card
-                    title={false}
-                    size="small"
-                    bordered={false}
-                    style={{ width: 300 }}
-                  >
+                  <Card title={false} size="small" bordered={false}>
                     <div>
                       <Statistic
                         title="成功数"
@@ -512,12 +497,7 @@ export default class task extends PureComponent {
                   </Card>
                 </Col>
                 <Col span={6}>
-                  <Card
-                    title={false}
-                    size="small"
-                    bordered={false}
-                    style={{ width: 300 }}
-                  >
+                  <Card title={false} size="small" bordered={false}>
                     <div>
                       <Statistic
                         title="失败数"
@@ -532,12 +512,7 @@ export default class task extends PureComponent {
                   </Card>
                 </Col>
                 <Col span={6}>
-                  <Card
-                    title={false}
-                    size="small"
-                    bordered={false}
-                    style={{ width: 300 }}
-                  >
+                  <Card title={false} size="small" bordered={false}>
                     <div>
                       <Statistic
                         title="最长请求时间（ms）"
@@ -552,12 +527,7 @@ export default class task extends PureComponent {
                   </Card>
                 </Col>
                 <Col span={6}>
-                  <Card
-                    title={false}
-                    size="small"
-                    bordered={false}
-                    style={{ width: 300 }}
-                  >
+                  <Card title={false} size="small" bordered={false}>
                     <div>
                       <Statistic
                         title="最短请求时间（ms）"
@@ -574,7 +544,8 @@ export default class task extends PureComponent {
               </Row>
             </div>
           </Col>
-          <Col span={8}>
+
+          <Col span={8} style={{ height: 320 }}>
             <Button
               onClick={this.isModelShow}
               icon={<PlusCircleOutlined />}
@@ -583,6 +554,7 @@ export default class task extends PureComponent {
               style={{ position: 'absolute', top: 8, right: 10, zIndex: 99 }}
             ></Button>
             <Table
+              scroll={{ y: 250 }}
               size="small"
               columns={this.state.columns}
               dataSource={this.props.task.taskList}
@@ -603,6 +575,42 @@ export default class task extends PureComponent {
             >
               <CraeteEdit data={this.state.editData}></CraeteEdit>
             </Modal>
+          </Col>
+
+          <Col span={24}>
+            <Tabs defaultActiveKey="1">
+              <TabPane tab="响应数据" key="1">
+                {this.props.task.taskList[this.state.curTaskId] &&
+                this.props.task.taskList[this.state.curTaskId].responseData &&
+                this.props.task.taskList[this.state.curTaskId]
+                  .responseData[0] ? (
+                  <Line
+                    data={
+                      this.props.task.taskList[this.state.curTaskId]
+                        .responseData
+                    }
+                  ></Line>
+                ) : (
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                )}
+              </TabPane>
+              <TabPane tab="错误数据" key="2">
+                {this.props.task.taskList[this.state.curTaskId] &&
+                this.props.task.taskList[this.state.curTaskId]
+                  .responseErrData &&
+                this.props.task.taskList[this.state.curTaskId]
+                  .responseErrData[0] ? (
+                  <Pie
+                    data={
+                      this.props.task.taskList[this.state.curTaskId]
+                        .responseErrData
+                    }
+                  ></Pie>
+                ) : (
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                )}
+              </TabPane>
+            </Tabs>
           </Col>
         </Row>
       </div>

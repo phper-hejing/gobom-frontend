@@ -56,6 +56,7 @@ export default class body extends PureComponent {
               <Option value="file">file</Option>
               <Option value="sendData">sendData</Option>
               <Option value="response">response</Option>
+              <Option value="rand">rand</Option>
             </Select>
           ),
         },

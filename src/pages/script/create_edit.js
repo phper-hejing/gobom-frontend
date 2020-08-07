@@ -11,6 +11,7 @@ import {
   InputNumber,
   message,
   Progress,
+  Popconfirm,
   Tag,
 } from 'antd';
 import {
@@ -24,6 +25,10 @@ import {
   CaretRightOutlined,
   MinusCircleOutlined,
   CopyrightCircleOutlined,
+  UpCircleOutlined,
+  DownCircleOutlined,
+  DeleteOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons';
 import { connect } from 'dva';
 import { history } from 'umi';
@@ -52,7 +57,7 @@ const scriptModelEvent = dispatch => {
     addScript: data => {
       dispatch({
         type: `${namespace}/addScript`,
-        payload: data,
+        payload: JSON.parse(JSON.stringify(data)),
       }).then(resp => {
         if (resp.msg != '') {
           message.error(resp.msg);
@@ -64,7 +69,7 @@ const scriptModelEvent = dispatch => {
     editScript: (data, callback) => {
       dispatch({
         type: `${namespace}/editScript`,
-        payload: data,
+        payload: JSON.parse(JSON.stringify(data)),
       }).then(resp => {
         if (resp.msg != '') {
           message.error(resp.msg);
@@ -120,35 +125,42 @@ export default class create_edit extends PureComponent {
         ...script,
       });
 
-      // 需要手动更新表单数据
-      let data = script.data;
-      let formData = {
-        name: script.name,
-        protocol: script.protocol,
-        url: data.url,
-        method: data.httpOptions.method,
-      };
-      if (
-        data.transactionOptions &&
-        data.transactionOptions.transactionOptionsData
-      ) {
-        for (let i in data.transactionOptions.transactionOptionsData) {
-          formData['item_name'.i] =
-            data.transactionOptions.transactionOptionsData[i].name;
-          formData['item_url'.i] =
-            data.transactionOptions.transactionOptionsData[i].url;
-          formData['item_method'.i] =
-            data.transactionOptions.transactionOptionsData[i].method;
-          formData['item_inteval'.i] =
-            data.transactionOptions.transactionOptionsData[i].interval;
-        }
-      }
-
-      this.form.current.setFieldsValue({
-        ...formData,
-      });
+      this.saveFormData(script);
     }
   }
+
+  // 更新表单数据
+  saveFormData = result => {
+    let formData = {};
+
+    if (result.name != undefined) {
+      formData.name = result.name;
+    }
+
+    if (result.protocol != undefined) {
+      formData.protocol = result.protocol;
+    }
+
+    if (result.data && result.data.url) {
+      formData.url = result.data.url;
+    }
+
+    if (
+      result.data &&
+      result.data.httpOptions &&
+      result.data.httpOptions.method != undefined
+    ) {
+      formData.method = result.data.httpOptions.method;
+    }
+
+    if (result.data && result.data.interval != undefined) {
+      formData.interval = result.data.interval;
+    }
+
+    this.form.current.setFieldsValue({
+      ...formData,
+    });
+  };
 
   getStateData = () => {
     let data = this.props.script ? this.props.script : false;
@@ -160,6 +172,7 @@ export default class create_edit extends PureComponent {
         protocol: REQUEST_HTTP,
         data: {
           url: '',
+          interval: 0,
           httpOptions: {
             method: defaultSelectedMethod,
             header: {},
@@ -241,7 +254,7 @@ export default class create_edit extends PureComponent {
   };
 
   addTransactionRow = e => {
-    let data = this.state.data;
+    let data = JSON.parse(JSON.stringify(this.state.data));
     data.transactionOptions.transactionOptionsData.push({
       name: '',
       url: '',
@@ -253,29 +266,24 @@ export default class create_edit extends PureComponent {
     this.setState({
       data: data,
     });
-    this.forceUpdate();
   };
 
   delTransactionRow = (index, e) => {
-    let data = this.state.data;
+    let data = JSON.parse(JSON.stringify(this.state.data));
     data.transactionOptions.transactionOptionsData.splice(index, 1);
     this.setState({
       data: data,
     });
-    this.forceUpdate();
     e.stopPropagation();
   };
 
   copyTransactionRow = (index, e) => {
-    let data = this.state.data;
-    let record = JSON.parse(
-      JSON.stringify(data.transactionOptions.transactionOptionsData[index]),
-    );
+    let data = JSON.parse(JSON.stringify(this.state.data));
+    let record = data.transactionOptions.transactionOptionsData[index];
     data.transactionOptions.transactionOptionsData.push(record);
     this.setState({
       data: data,
     });
-    this.forceUpdate();
     e.stopPropagation();
   };
 
@@ -284,7 +292,6 @@ export default class create_edit extends PureComponent {
     if (val == '' || val) {
       return val;
     }
-    s;
     return '';
   };
 
@@ -296,7 +303,7 @@ export default class create_edit extends PureComponent {
   };
 
   setValueToData = (field, e) => {
-    let data = this.state.data;
+    let data = JSON.parse(JSON.stringify(this.state.data));
     let value = e && e.target ? e.target.value : e;
 
     data[field] = value;
@@ -306,7 +313,7 @@ export default class create_edit extends PureComponent {
   };
 
   setHttpOptions = (field, e) => {
-    let data = this.state.data;
+    let data = JSON.parse(JSON.stringify(this.state.data));
     let value = e && e.target ? e.target.value : e;
     if (!data.httpOptions) {
       data.httpOptions = {};
@@ -326,7 +333,7 @@ export default class create_edit extends PureComponent {
   };
 
   setSendData = e => {
-    let data = this.state.data;
+    let data = JSON.parse(JSON.stringify(this.state.data));
     let value = e && e.target ? e.target.value : e;
     if (!data.sendData || !data.sendData.dataFieldList) {
       data.sendData = {
@@ -348,7 +355,7 @@ export default class create_edit extends PureComponent {
   };
 
   setTransactionData = (index, field, e) => {
-    let data = this.state.data;
+    let data = JSON.parse(JSON.stringify(this.state.data));
     let value = e && e.target ? e.target.value : e;
     if (
       !data.transactionOptions ||
@@ -359,9 +366,11 @@ export default class create_edit extends PureComponent {
       };
     }
     data.transactionOptions.transactionOptionsData[index][field] = value;
+
     this.setState({
       data: data,
     });
+
     this.forceUpdate();
   };
 
@@ -416,7 +425,7 @@ export default class create_edit extends PureComponent {
   };
 
   setTransactionHttpOptions = (index, field, e) => {
-    let data = this.state.data;
+    let data = JSON.parse(JSON.stringify(this.state.data));
     let value = e && e.target ? e.target.value : e;
     if (!data.transactionOptions.transactionOptionsData[index].httpOptions) {
       data.transactionOptions.transactionOptionsData[index].httpOptions = {};
@@ -443,6 +452,49 @@ export default class create_edit extends PureComponent {
     }
     return this.state.data.transactionOptions.transactionOptionsData[index]
       .httpOptions[field];
+  };
+
+  moveUpTransactionRow = (index, e) => {
+    e.stopPropagation();
+    if (index == 0) {
+      return;
+    }
+
+    let prevIndex = index - 1;
+    let data = JSON.parse(JSON.stringify(this.state.data));
+    let transactionOptionsData = data.transactionOptions.transactionOptionsData;
+    if (transactionOptionsData && transactionOptionsData[prevIndex]) {
+      [transactionOptionsData[prevIndex], transactionOptionsData[index]] = [
+        transactionOptionsData[index],
+        transactionOptionsData[prevIndex],
+      ];
+    }
+
+    this.setState({
+      data: data,
+    });
+  };
+
+  moveDwTransactionRow = (index, e) => {
+    e.stopPropagation();
+    let nextIndex = index + 1;
+    let data = JSON.parse(JSON.stringify(this.state.data));
+    let transactionOptionsData = data.transactionOptions.transactionOptionsData;
+
+    if (transactionOptionsData.length - 1 == index) {
+      return;
+    }
+
+    if (transactionOptionsData && transactionOptionsData[nextIndex]) {
+      [transactionOptionsData[nextIndex], transactionOptionsData[index]] = [
+        transactionOptionsData[index],
+        transactionOptionsData[nextIndex],
+      ];
+    }
+
+    this.setState({
+      data: data,
+    });
   };
 
   render() {
@@ -494,6 +546,19 @@ export default class create_edit extends PureComponent {
                 ]}
               >
                 <Input onChange={this.setValueToData.bind(this, 'url')} />
+              </Form.Item>
+
+              <Form.Item
+                initialValue={this.getValueToData('interval')}
+                label="间隔时间"
+                name="interval"
+              >
+                <InputNumber
+                  size="small"
+                  onChange={this.setValueToData.bind(this, 'interval')}
+                  style={{ width: 100 }}
+                  type="text"
+                />
               </Form.Item>
 
               {this.state.protocol == REQUEST_HTTP ? (
@@ -595,7 +660,21 @@ export default class create_edit extends PureComponent {
                                 )}
                               />
                               &nbsp;&nbsp;&nbsp;
-                              <MinusCircleOutlined
+                              <UpCircleOutlined
+                                onClick={this.moveUpTransactionRow.bind(
+                                  this,
+                                  index,
+                                )}
+                              />
+                              &nbsp;&nbsp;&nbsp;
+                              <DownCircleOutlined
+                                onClick={this.moveDwTransactionRow.bind(
+                                  this,
+                                  index,
+                                )}
+                              />
+                              &nbsp;&nbsp;&nbsp;
+                              <DeleteOutlined
                                 onClick={this.delTransactionRow.bind(
                                   this,
                                   index,
@@ -607,62 +686,35 @@ export default class create_edit extends PureComponent {
                           key={index}
                           style={customPanelStyle}
                         >
-                          <Form.Item
-                            initialValue={item.name}
-                            name={`item_name${index}`}
-                            label="名称"
-                            rules={[
-                              {
-                                required: true,
-                                message: '请填写名称',
-                              },
-                            ]}
-                          >
+                          <Form.Item label="名称">
                             <Input
                               onChange={this.setTransactionData.bind(
                                 this,
                                 index,
                                 'name',
                               )}
+                              value={item.name}
                             />
                           </Form.Item>
 
-                          <Form.Item
-                            initialValue={item.url}
-                            name={`item_url${index}`}
-                            label="URL"
-                            rules={[
-                              {
-                                required: true,
-                                message: '请填写URL',
-                              },
-                            ]}
-                          >
+                          <Form.Item label="URL">
                             <Input
                               onChange={this.setTransactionData.bind(
                                 this,
                                 index,
                                 'url',
                               )}
+                              value={item.url}
                             />
                           </Form.Item>
 
                           <Form.Item
-                            initialValue={
-                              this.getTransactionHttpOptions(index, 'method')
-                                ? this.getTransactionHttpOptions(
-                                    index,
-                                    'method',
-                                  )
-                                : defaultSelectedMethod
-                            }
                             style={{
                               display:
                                 this.state.protocol != REQUEST_TCP
                                   ? null
                                   : 'none',
                             }}
-                            name={`item_method${index}`}
                             label="Method"
                           >
                             <Radio.Group
@@ -671,6 +723,14 @@ export default class create_edit extends PureComponent {
                                 index,
                                 'method',
                               )}
+                              value={
+                                this.getTransactionHttpOptions(index, 'method')
+                                  ? this.getTransactionHttpOptions(
+                                      index,
+                                      'method',
+                                    )
+                                  : defaultSelectedMethod
+                              }
                             >
                               {defaultMethods.map(function(item, index) {
                                 return (
@@ -682,11 +742,7 @@ export default class create_edit extends PureComponent {
                             </Radio.Group>
                           </Form.Item>
 
-                          <Form.Item
-                            initialValue={item.interval ? item.interval : 0}
-                            name={`item_interval${index}`}
-                            label="间隔时间"
-                          >
+                          <Form.Item label="间隔时间">
                             <InputNumber
                               size="small"
                               onChange={this.setTransactionData.bind(
@@ -696,6 +752,7 @@ export default class create_edit extends PureComponent {
                               )}
                               style={{ width: 100 }}
                               type="text"
+                              value={item.interval ? item.interval : 0}
                             />
                           </Form.Item>
 
@@ -759,9 +816,24 @@ export default class create_edit extends PureComponent {
                 size="small"
               />
             </div>
-            <Button type="primary" htmlType="submit">
-              提交
-            </Button>
+
+            {this.isUpdate ? (
+              <Popconfirm
+                title="同时初始化关联此脚本的任务,确认提交？"
+                okText="Yes"
+                cancelText="No"
+                onConfirm={this.handelSubmit.bind(this)}
+              >
+                <Button type="primary" htmlType="submit">
+                  提交
+                </Button>
+              </Popconfirm>
+            ) : (
+              <Button type="primary" htmlType="submit">
+                提交
+              </Button>
+            )}
+
             <Button
               style={{ marginLeft: 10 }}
               type="dashed"

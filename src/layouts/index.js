@@ -67,7 +67,7 @@ export default class index extends PureComponent {
   };
 
   componentDidMount() {
-    this.props.init.call(this, REQUEST_WS_URL + '/task/ws');
+    this.props.init.call(this, REQUEST_WS_URL + '/ws');
   }
 
   render() {

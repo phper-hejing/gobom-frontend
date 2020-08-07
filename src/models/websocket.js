@@ -1,24 +1,21 @@
-import request from '../utils/request';
 import { WS_PING } from '../constant';
+
+let callbackList = {
+  [WS_PING]: function(ws, data) {
+    ws.send(JSON.stringify(data));
+  },
+};
 
 export default {
   namespace: 'websocket',
+
   state: {
     ws: null,
-    callbackList: {
-      [WS_PING]: function(ws, data) {
-        if (ws) {
-          ws.send(JSON.stringify(data));
-        }
-      },
-    },
   },
+
   effects: {
     *init({ payload: data }, { put, select }) {
       let { url, callback } = data;
-      let { callbackList } = yield select(state => {
-        return { callbackList: state.websocket.callbackList };
-      });
 
       let ws = new WebSocket(url);
 
@@ -52,6 +49,7 @@ export default {
       yield put({ type: 'setWs', payload: ws });
     },
   },
+
   reducers: {
     setWs(state, { payload: ws }) {
       return {
@@ -60,12 +58,13 @@ export default {
       };
     },
     registerHandel(state, { payload: handel }) {
+      callbackList = {
+        ...callbackList,
+        [handel.key]: handel.callback,
+      };
+
       return {
         ...state,
-        callbackList: {
-          [handel.key]: handel.callback,
-          ...state.callbackList,
-        },
       };
     },
   },

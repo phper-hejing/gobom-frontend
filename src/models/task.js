@@ -8,6 +8,91 @@ const taskDelUrl = REQUEST_URL + '/task/delete';
 const taskRunUrl = REQUEST_URL + '/task/run';
 const taskStopUrl = REQUEST_URL + '/task/stop';
 
+const dataDispose = data => {
+  let responseData = [];
+  let responseErrData = [];
+  if (data.task && data.task.worker && data.task.worker.report) {
+    let report = data.task.worker.report;
+
+    // 统计时间段内请求得成功和失败数
+    let successKeys = [];
+    let errorKeys = [];
+    let successMap = [];
+    let errorsMap = [];
+    if (report.successNumMap) {
+      successKeys = Object.keys(report.successNumMap).sort((a, b) => {
+        return Date.parse(a) > Date.parse(b);
+      });
+    }
+
+    if (report.failureNumMap) {
+      errorKeys = Object.keys(report.failureNumMap).sort((a, b) => {
+        return Date.parse(a) > Date.parse(b);
+      });
+    }
+
+    if (successKeys.length > errorKeys.length) {
+      for (let i in successKeys) {
+        let successNum = report.successNumMap[successKeys[i]]
+          ? report.successNumMap[successKeys[i]]
+          : 0;
+        let errorsNum = report.failureNumMap[successKeys[i]]
+          ? report.failureNumMap[successKeys[i]]
+          : 0;
+        responseData.push([
+          {
+            name: '成功数',
+            date: successKeys[i],
+            value: successNum,
+          },
+          {
+            name: '失败数',
+            date: successKeys[i],
+            value: errorsNum,
+          },
+        ]);
+      }
+    } else {
+      for (let i in errorKeys) {
+        let successNum = report.successNumMap[errorKeys[i]]
+          ? report.successNumMap[errorKeys[i]]
+          : 0;
+        let errorsNum = report.failureNumMap[errorKeys[i]]
+          ? report.failureNumMap[errorKeys[i]]
+          : 0;
+        responseData.push([
+          {
+            name: '成功数',
+            date: errorKeys[i],
+            value: successNum,
+          },
+          {
+            name: '失败数',
+            date: errorKeys[i],
+            value: errorsNum,
+          },
+        ]);
+      }
+    }
+
+    // 统计失败请求原因
+    if (report.errCode) {
+      Object.keys(report.errCode).map(errCode => {
+        responseErrData.push({
+          name:
+            report.errCodeMsg && report.errCodeMsg[errCode]
+              ? report.errCodeMsg[errCode]
+              : errCode,
+          value: report.errCode[errCode],
+        });
+      });
+    }
+  }
+
+  data.responseData = responseData;
+  data.responseErrData = responseErrData;
+};
+
 const taskDefault = (data, index) => {
   if (!data || !data.task) {
     return {
@@ -25,6 +110,9 @@ const taskDefault = (data, index) => {
       scriptId: '--',
     };
   }
+
+  dataDispose(data);
+
   return {
     key: index,
     taskId: data.task.taskId,
@@ -38,6 +126,8 @@ const taskDefault = (data, index) => {
     minTime: data.task.worker.report.minTime,
     createdAt: data.CreatedAt,
     scriptId: data.scriptId,
+    responseData: data.responseData,
+    responseErrData: data.responseErrData,
   };
 };
 
@@ -45,6 +135,9 @@ const taskSave = (oldData, newData) => {
   if (!newData) {
     return oldData;
   }
+
+  dataDispose(newData);
+
   return {
     key: oldData.key,
     taskId: oldData.taskId,
@@ -58,6 +151,8 @@ const taskSave = (oldData, newData) => {
     minTime: newData.task.worker.report.minTime,
     createdAt: oldData.createdAt,
     scriptId: oldData.scriptId,
+    responseData: newData.responseData,
+    responseErrData: newData.responseErrData,
   };
 };
 
@@ -128,6 +223,12 @@ export default {
       };
     },
     saveTask(state, { payload: data }) {
+      if (!data) {
+        return {
+          ...state,
+        };
+      }
+
       let taskList = JSON.parse(JSON.stringify(state.taskList));
       for (let index in taskList) {
         if (taskList[index].taskId == data.task.taskId) {
